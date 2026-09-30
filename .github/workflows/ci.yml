@@ -1,5 +1,7 @@
 name: CI2
-on: [push]
+on: 
+  workflow_dispatch
+    
 jobs:
   call-ci:
     uses: kk-security/.github/.github/workflows/reusable-ci.yml@main

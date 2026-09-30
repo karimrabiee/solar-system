@@ -1,0 +1,23 @@
+name: exploring workflow
+
+on:
+    workflow_dispatch:
+    push:
+
+jobs:
+    unit-testing:
+     runs-on: ubuntu-latest
+     steps:
+      - name: Checkout your branch
+        uses: actions/checkout@v4
+
+      - name: Then install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 8.11.3
+
+      - name: install dependencies
+        run: npm install
+
+      - name: test
+        run: npm test
