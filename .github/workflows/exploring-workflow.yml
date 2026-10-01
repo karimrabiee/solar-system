@@ -15,6 +15,9 @@ jobs:
         matrix:
             os: [ubuntu-latest, macos-latest]
             node-version: [18, 19, 20]
+            exclude:
+                - os: ubuntu-latest
+                  node-varsion: 18
      runs-on: ${{matrix.os}}
      steps:
         
