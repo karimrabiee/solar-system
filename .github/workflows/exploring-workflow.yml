@@ -17,7 +17,7 @@ jobs:
             node-version: [18, 19, 20]
             exclude:
                 - os: ubuntu-latest
-                  node-varsion: 18
+                  node-varsion: "18"
      runs-on: ${{matrix.os}}
      steps:
         
