@@ -38,7 +38,7 @@ jobs:
 
       - name: archieve the results
         uses: actions/upload-artifact@v7
-        if: always()
+        if: failure()
         with:
           # Name of the artifact to upload.
           # Optional. Default is 'artifact'
