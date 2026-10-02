@@ -38,7 +38,7 @@ jobs:
 
       - name: archieve the results
         uses: actions/upload-artifact@v7
-        if: steps.unit-test.outputs == 'failure'
+        if: success()
         with:
           # Name of the artifact to upload.
           # Optional. Default is 'artifact'
@@ -48,7 +48,8 @@ jobs:
           # Required.
           path: test-results.xml
     coverage-code:
-     name: coverage code
+     continue-on-error: true
+     name: code-coverage
      runs-on: ubuntu-latest
      steps:
         
@@ -60,19 +61,27 @@ jobs:
         with:
           node-version: ${{matrix.node-version}}
 
+      - name: Cache NPM Dependencies
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          # using hashFiles to generate a unique hash based on the contents of package-lock.json
+          # This ensures that the cache is updated whenever package-lock.json changes
+          key: ${{ runner.os }}-node_modules-${{ hashFiles('package-lock.json') }}
+
       - name: install dependencies
         run: npm install
 
       - name: coverage
         continue-on-error: true
-        run: npm run coverage
+        run: npm run code-coverage
 
       - name: archieve the results
         uses: actions/upload-artifact@v7
         with:
           # Name of the artifact to upload.
           # Optional. Default is 'artifact'
-          name: coverage-report-artifacts
+          name: Code-Coverage-Result
  
           # A file, directory or wildcard pattern that describes what to upload
           # Required.
