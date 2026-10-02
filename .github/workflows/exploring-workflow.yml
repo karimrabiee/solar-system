@@ -92,6 +92,7 @@ jobs:
 
 
     docker:
+     needs: [unit-testing, coverage-code]
      name: containerization
      runs-on: ubuntu-latest
      steps:
