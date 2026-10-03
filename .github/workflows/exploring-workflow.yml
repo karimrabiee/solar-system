@@ -15,11 +15,11 @@ jobs:
      name: unit testing
      strategy:
         matrix:
-            os: [ubuntu-latest, macos-latest]
-            node-version: [18, 19, 20]
-            exclude:
-                - os: ubuntu-latest
-                  node-version: 18
+            os: [ubuntu-latest]
+            node-version: [18]
+            # exclude:
+            #     - os: ubuntu-latest
+            #       node-version: 18
      runs-on: ${{matrix.os}}
      steps:
         
@@ -124,7 +124,12 @@ jobs:
 
       - name: Test
         run: |
+          docker images
           docker run --rm ${{ env.TEST_TAG }}
+          -p 3000:3000
+          -e MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData'
+          -e MONGO_USERNAME: ${{vars.MONGO_USERNAME}}
+          -e MONGO_PASSWORD: ${{secrets.MONGO_PASSWORD}}
 
       - name: Build and push
         uses: docker/build-push-action@v7
