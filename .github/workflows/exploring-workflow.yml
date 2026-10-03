@@ -120,21 +120,21 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           load: true
-          tags: ${{ env.TEST_TAG }}
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
 
       - name: Test
         run: |
           docker images
-          docker run \
+          docker run --name solar-system-app -d \
           -p 3000:3000 \
           -e "MONGO_URI=${MONGO_URI}" \
           -e "MONGO_USERNAME=${MONGO_USERNAME}" \
           -e "MONGO_PASSWORD=${MONGO_PASSWORD}" \
-          ${{ env.TEST_TAG }}
+          ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
 
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ env.LATEST_TAG }}
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
