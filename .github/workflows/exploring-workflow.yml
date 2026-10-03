@@ -97,6 +97,8 @@ jobs:
      needs: [unit-testing, coverage-code]
      name: containerization
      runs-on: ubuntu-latest
+     permissions:
+        packages: write
      steps:
       - name: Checkout your branch
         uses: actions/checkout@v4
@@ -106,6 +108,13 @@ jobs:
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ vars.github_repository_owner }}
+          password: ${{ secrets.github_token }}
 
       # Set up QEMU and Docker Buildx to enable building multi-platform Docker images
       # QEMU allows you to emulate different CPU architectures, while Docker Buildx is a CLI plugin that extends the capabilities of Docker Build, enabling you to build images for multiple platforms.
@@ -137,4 +146,6 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
+          tags: |
+            ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
+            ghcr.io/${{ vars.github_repository_owner }}/solar-system:${{github.sha}}
