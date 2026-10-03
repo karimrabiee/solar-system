@@ -76,7 +76,7 @@ jobs:
         MONGO_URI: mongodb://mongo:27017/superData
         MONGO_USERNAME: non-prod-user
         MONGO_PASSWORD: non-prod-password
-     continue-on-error: true
+    #  continue-on-error: true
      name: code-coverage
      runs-on: ubuntu-latest
      steps:
@@ -102,7 +102,7 @@ jobs:
         run: npm install
 
       - name: coverage
-        continue-on-error: true
+        # continue-on-error: true
         run: npm run code-coverage
 
       - name: archieve the results
