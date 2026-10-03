@@ -14,10 +14,15 @@ jobs:
     unit-testing:
      name: unit testing
      services:
-        mongo:
-          image: mongodb/search-test-base-images:distroless-testing-9.8-20260930-x86_64
-          ports:
-            - 27017:27017
+      mongo:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
      env:
         MONGO_URI: mongodb://localhost:27017
         MONGO_USERNAME: non-prod-mongo-db-username
