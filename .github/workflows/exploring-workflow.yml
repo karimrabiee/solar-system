@@ -103,7 +103,7 @@ jobs:
 
       - name: coverage
         # continue-on-error: true
-        run: npm run code-coverage
+        run: npm run coverage
 
       - name: archieve the results
         uses: actions/upload-artifact@v7
