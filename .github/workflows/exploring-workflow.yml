@@ -125,11 +125,12 @@ jobs:
       - name: Test
         run: |
           docker images
-          docker run --rm ${{ env.TEST_TAG }}
-          -p 3000:3000
-          -e MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData'
-          -e MONGO_USERNAME: ${{vars.MONGO_USERNAME}}
-          -e MONGO_PASSWORD: ${{secrets.MONGO_PASSWORD}}
+          docker run --rm \
+          -p 3000:3000 \
+          -e MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData' \
+          -e MONGO_USERNAME: ${{vars.MONGO_USERNAME}} \
+          -e MONGO_PASSWORD: ${{secrets.MONGO_PASSWORD}} \
+          ${{ env.TEST_TAG }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
@@ -137,4 +138,3 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.LATEST_TAG }}
-          
