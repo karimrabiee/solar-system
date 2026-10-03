@@ -13,6 +13,15 @@ env:
 jobs:
     unit-testing:
      name: unit testing
+     services:
+        mongo:
+          image: mongodb/search-test-base-images:distroless-testing-9.8-20260930-x86_64
+          ports:
+            - 27017:27017
+     env:
+        MONGO_URI: mongodb://localhost:27017
+        MONGO_USERNAME: non-prod-mongo-db-username
+        MONGO_PASSWORD: non-prod-mongo-db-password
      strategy:
         matrix:
             os: [ubuntu-latest]
@@ -49,6 +58,8 @@ jobs:
           # A file, directory or wildcard pattern that describes what to upload
           # Required.
           path: test-results.xml
+
+
     coverage-code:
      continue-on-error: true
      name: code-coverage
