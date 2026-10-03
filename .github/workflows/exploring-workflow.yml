@@ -127,9 +127,9 @@ jobs:
           docker images
           docker run --rm \
           -p 3000:3000 \
-          -e MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData' \
-          -e MONGO_USERNAME: ${{vars.MONGO_USERNAME}} \
-          -e MONGO_PASSWORD: ${{secrets.MONGO_PASSWORD}} \
+          -e MONGO_URI='mongodb+srv://supercluster.d83jj.mongodb.net/superData' \
+          -e MONGO_USERNAME=${{vars.MONGO_USERNAME}} \
+          -e MONGO_PASSWORD=${{secrets.MONGO_PASSWORD}} \
           ${{ env.TEST_TAG }}
 
       - name: Build and push
