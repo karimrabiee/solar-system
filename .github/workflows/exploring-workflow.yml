@@ -63,6 +63,19 @@ jobs:
 
 
     coverage-code:
+     container:
+      image: node:18
+  
+     services:
+      mongo-db:
+        image: siddharth67/mongo-db:non-prod
+        options: 
+         --name mongo
+     
+     env:
+        MONGO_URI: mongodb://mongo:27017/superData
+        MONGO_USERNAME: non-prod-user
+        MONGO_PASSWORD: non-prod-password
      continue-on-error: true
      name: code-coverage
      runs-on: ubuntu-latest
@@ -71,10 +84,10 @@ jobs:
       - name: Checkout your branch
         uses: actions/checkout@v4
 
-      - name: Then install Node.js version - ${{matrix.node-version}}
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{matrix.node-version}}
+      # - name: Then install Node.js version - ${{matrix.node-version}}
+      #   uses: actions/setup-node@v6
+      #   with:
+      #     node-version: ${{matrix.node-version}}
 
       - name: Cache NPM Dependencies
         uses: actions/cache@v6
