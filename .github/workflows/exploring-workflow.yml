@@ -179,7 +179,7 @@ jobs:
     dev-deploy:
       needs: docker
       name: dev-deploy
-      runs-on: ubuntu-latest
+      runs-on: self-hosted
       steps:
         - name: Checkout your branch
           uses: actions/checkout@v4
