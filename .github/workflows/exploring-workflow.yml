@@ -184,23 +184,23 @@ jobs:
         - name: Checkout your branch
           uses: actions/checkout@v4
 
-        - name: Create kind cluster
-          uses: helm/kind-action@v1
+        # - name: Create kind cluster
+        #   uses: helm/kind-action@v1
+        #   with:
+        #    cluster_name: solar-system
+        #    wait: 120s
+
+
+        - name: install kubectl
+          uses: azure/setup-kubectl@v3
           with:
-           cluster_name: solar-system
-           wait: 120s
-
-
-        # - name: install kubectl
-        #   uses: azure/setup-kubectl@v3
-        #   with:
-        #     version: 'latest'
+            version: 'latest'
             
-        # - name: set kubernetes context
-        #   uses: azure/k8s-set-context@v5
-        #   with:
-        #     method: kubeconfig
-        #     kubeconfig: ${{ secrets.KUBECONFIG }}
+        - name: set kubernetes context
+          uses: azure/k8s-set-context@v5
+          with:
+            method: kubeconfig
+            kubeconfig: ${{ secrets.KUBECONFIG }}
             
 
         - name: fetch kubernetes cluster details
