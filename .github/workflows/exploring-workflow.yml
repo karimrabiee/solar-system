@@ -298,18 +298,8 @@ jobs:
             --selector=app.kubernetes.io/component=controller \
             --timeout=180s
 
-          kubectl wait \
-            --namespace ingress-nginx \
-            --for=condition=complete job/ingress-nginx-admission-create \
-            --timeout=180s
-
-          kubectl wait \
-            --namespace ingress-nginx \
-            --for=condition=complete job/ingress-nginx-admission-patch \
-            --timeout=180s
-
           WEBHOOK_ENDPOINTS=""
-          for attempt in {1..30}; do
+          for attempt in {1..60}; do
             WEBHOOK_ENDPOINTS="$(kubectl get endpoints ingress-nginx-controller-admission \
               --namespace ingress-nginx \
               --output=jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true)"
@@ -335,12 +325,15 @@ jobs:
           kubectl apply -f /tmp/ingress.yaml
           kubectl get ingress -n dev
 
-      - name: Run Dev integration test through Ingress
+      - name: Set application host URL
+        id: app-host
         run: |
-          set -euo pipefail
-
           APP_HOST="solar-system-dev.127.0.0.1.nip.io"
           APP_URL="http://${APP_HOST}"
+
+          echo "host=${APP_HOST}" >> "$GITHUB_OUTPUT"
+          echo "url=${APP_URL}" >> "$GITHUB_OUTPUT"
+
           echo "Application URL: ${APP_URL}"
           {
             echo "## Kubernetes Dev application"
@@ -349,6 +342,15 @@ jobs:
             echo ""
             echo "**${APP_URL}**"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Dev integration test through Ingress
+        run: |
+          set -euo pipefail
+
+          APP_HOST="${{ steps.app-host.outputs.host }}"
+          APP_URL="${{ steps.app-host.outputs.url }}"
+
+          echo "Testing application URL: ${APP_URL}"
 
           for attempt in {1..60}; do
             if curl --silent --show-error --fail \
