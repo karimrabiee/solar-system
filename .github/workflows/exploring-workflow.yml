@@ -1,134 +1,106 @@
 name: exploring workflow
 
-on: 
+on:
   workflow_dispatch:
   push:
 
 env:
-    MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData'
-    MONGO_USERNAME: ${{vars.MONGO_USERNAME}}
-    MONGO_PASSWORD: ${{secrets.MONGO_PASSWORD}}
-    TEST_TAG: user/app:test
-    LATEST_TAG: user/app:latest
+  # Keep the MongoDB connection configurable through GitHub Variables/Secrets.
+  MONGO_URI: ${{ vars.MONGO_URI || 'mongodb+srv://supercluster.d83jj.mongodb.net/superData' }}
+  MONGO_USERNAME: ${{ vars.MONGO_USERNAME }}
+  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-    unit-testing:
-     name: unit testing
-     services:
+  unit-testing:
+    name: Unit testing
+    runs-on: ubuntu-latest
+
+    services:
       mongo-db:
         image: siddharth67/mongo-db:non-prod
         ports:
           - 27017:27017
-     
 
-     env:
-        MONGO_URI: mongodb://localhost:27017/superData
-        MONGO_USERNAME: non-prod-user
-        MONGO_PASSWORD: non-prod-password
-     strategy:
-        matrix:
-            os: [ubuntu-latest]
-            node-version: [18]
-            # exclude:
-            #     - os: ubuntu-latest
-            #       node-version: 18
-     runs-on: ${{matrix.os}}
-     steps:
-        
-      - name: Checkout your branch
+    env:
+      MONGO_URI: mongodb://localhost:27017/superData
+      MONGO_USERNAME: non-prod-user
+      MONGO_PASSWORD: non-prod-password
+
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Then install Node.js version - ${{matrix.node-version}}
+      - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{matrix.node-version}}
+          node-version: 18
+          cache: npm
 
-      - name: install dependencies
+      - name: Install dependencies
         run: npm install
 
-      - name: unit test
-        id: unit-test
+      - name: Run unit tests
         run: npm test
 
-      - name: archieve the results
+      - name: Upload test results
+        if: always()
         uses: actions/upload-artifact@v7
-        if: success()
         with:
-          # Name of the artifact to upload.
-          # Optional. Default is 'artifact'
           name: mocha-artifacts
- 
-          # A file, directory or wildcard pattern that describes what to upload
-          # Required.
           path: test-results.xml
+          if-no-files-found: warn
 
+  coverage-code:
+    name: Code coverage
+    runs-on: ubuntu-latest
 
-    coverage-code:
-     container:
+    container:
       image: node:18
-  
-     services:
+
+    services:
       mongo-db:
         image: siddharth67/mongo-db:non-prod
-        options: 
-         --name mongo
-     
-     env:
-        MONGO_URI: mongodb://mongo:27017/superData
-        MONGO_USERNAME: non-prod-user
-        MONGO_PASSWORD: non-prod-password
-    #  continue-on-error: true
-     name: code-coverage
-     runs-on: ubuntu-latest
-     steps:
-        
-      - name: Checkout your branch
+        options: --name mongo
+
+    env:
+      MONGO_URI: mongodb://mongo:27017/superData
+      MONGO_USERNAME: non-prod-user
+      MONGO_PASSWORD: non-prod-password
+
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # - name: Then install Node.js version - ${{matrix.node-version}}
-      #   uses: actions/setup-node@v6
-      #   with:
-      #     node-version: ${{matrix.node-version}}
-
-      - name: Cache NPM Dependencies
-        uses: actions/cache@v6
-        with:
-          path: node_modules
-          # using hashFiles to generate a unique hash based on the contents of package-lock.json
-          # This ensures that the cache is updated whenever package-lock.json changes
-          key: ${{ runner.os }}-node_modules-${{ hashFiles('package-lock.json') }}
-          
-
-      - name: install dependencies
+      - name: Install dependencies
         run: npm install
 
-      - name: coverage
-        continue-on-error: true
+      - name: Generate coverage report
         run: npm run coverage
 
-      - name: archieve the results
+      - name: Upload coverage results
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          # Name of the artifact to upload.
-          # Optional. Default is 'artifact'
-          name: Code-Coverage-Result
- 
-          # A file, directory or wildcard pattern that describes what to upload
-          # Required.
+          name: code-coverage-result
           path: coverage
           retention-days: 5
-      
+          if-no-files-found: warn
 
+  docker:
+    name: Build and publish Docker image
+    needs:
+      - unit-testing
+      - coverage-code
+    runs-on: ubuntu-latest
 
-    docker:
-     needs: [unit-testing, coverage-code]
-     name: containerization
-     runs-on: ubuntu-latest
-     permissions:
-        packages: write
-     steps:
-      - name: Checkout your branch
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v4
- 
+
       - name: Login to Docker Hub
         uses: docker/login-action@v4
         with:
@@ -140,176 +112,215 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.github_token }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Set up QEMU and Docker Buildx to enable building multi-platform Docker images
-      # QEMU allows you to emulate different CPU architectures, while Docker Buildx is a CLI plugin that extends the capabilities of Docker Build, enabling you to build images for multiple platforms.
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
-      
-      # this builds the Docker image for the specified platforms (linux/amd64 and linux/arm64) and pushes it to Docker Hub with the specified tags. The 'load: true' option allows the built image to be loaded into the local Docker daemon, making it available for testing in the next step.
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and export to Docker
+      - name: Build image for smoke test
         uses: docker/build-push-action@v7
         with:
+          context: .
           load: true
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}
 
-      - name: Test
+      - name: Run Docker smoke test
         run: |
-          docker images
-          docker run --name solar-system-app -d \
-          -p 3000:3000 \
-          -e "MONGO_URI=${MONGO_URI}" \
-          -e "MONGO_USERNAME=${MONGO_USERNAME}" \
-          -e "MONGO_PASSWORD=${MONGO_PASSWORD}" \
-          ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
+          set -euo pipefail
 
-      - name: Build and push
+          docker run --name solar-system-app --detach \
+            --publish 3000:3000 \
+            --env "MONGO_URI=${MONGO_URI}" \
+            --env "MONGO_USERNAME=${MONGO_USERNAME}" \
+            --env "MONGO_PASSWORD=${MONGO_PASSWORD}" \
+            "${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}"
+
+          cleanup() {
+            docker logs solar-system-app || true
+            docker rm --force solar-system-app || true
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3000/live >/dev/null; then
+              echo "Docker smoke test passed"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Docker smoke test failed"
+          exit 1
+
+      - name: Build and push image
         uses: docker/build-push-action@v7
         with:
+          context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
-            ghcr.io/${{ github.repository_owner }}/solar-system:${{github.sha}}
-      
-    dev-deploy:
-       name: Deploy to Kubernetes Dev
-       needs: docker
-       runs-on: ubuntu-latest
+            ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/solar-system:${{ github.sha }}
 
-       env:
-        name: dev
+  dev-deploy:
+    name: Create Secret and deploy to Kubernetes Dev
+    needs: docker
+    runs-on: ubuntu-latest
 
-       steps:
-        - name: Checkout repository
-          uses: actions/checkout@v4
+    # This is the GitHub Environment from the course lesson.
+    env:
+      name: dev
 
-        - name: Install kubectl
-          uses: azure/setup-kubectl@v3
-          with:
-           version: latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-        - name: Create temporary kind cluster
-          uses: helm/kind-action@v1
-          with:
-           cluster_name: solar-system
-           wait: 120s
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: latest
 
-        - name: Verify Kubernetes connection
-          run: |
-           set -euo pipefail
+      # The old KUBECONFIG pointed to Docker Desktop on another machine.
+      # This creates Kubernetes inside this same GitHub-hosted runner instead.
+      - name: Create temporary kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: solar-system
+          config: .github/kind-config.yaml
+          wait: 120s
 
-           kubectl config current-context
-           kubectl cluster-info
-           kubectl version
-           kubectl get nodes
+      - name: Verify Kubernetes connection
+        run: |
+          set -euo pipefail
+          kubectl config current-context
+          kubectl cluster-info
+          kubectl version
+          kubectl get nodes -o wide
 
-        - name: Create dev namespace
-          run: |
-           kubectl create namespace dev \
-           --dry-run=client \
-           -o yaml | kubectl apply -f -
+      - name: Create dev namespace
+        run: |
+          kubectl create namespace dev \
+            --dry-run=client \
+            -o yaml | kubectl apply -f -
 
-        - name: Create Kubernetes Secret
-          run: |
-           kubectl create secret generic mongo-secret \
-           --namespace dev \
-           --from-literal=username="${{ vars.MONGO_USERNAME }}" \
-           --from-literal=password="${{ secrets.MONGO_PASSWORD }}" \
-           --dry-run=client \
-           -o yaml | kubectl apply -f -
+      # This is the GitHub Secret -> Kubernetes Secret step from the lesson.
+      - name: Create Kubernetes Secret
+        run: |
+          set -euo pipefail
 
-        - name: Replace image placeholder
-          run: |
-           IMAGE="${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}"
+          kubectl create secret generic mongo-db-creds \
+            --namespace dev \
+            --from-literal=MONGO_URI="${MONGO_URI}" \
+            --from-literal=MONGO_USERNAME="${MONGO_USERNAME}" \
+            --from-literal=MONGO_PASSWORD="${MONGO_PASSWORD}" \
+            --dry-run=client \
+            -o yaml | kubectl apply -f -
 
-           sed "s|IMAGE_PLACEHOLDER|${IMAGE}|g" \
-           kubernetes/deployment.yaml \
-           > /tmp/deployment-rendered.yaml
+      # These are the exact placeholders already present in the project manifests.
+      # We render copies instead of changing the source files in Git.
+      - name: Replace Kubernetes placeholders
+        run: |
+          set -euo pipefail
 
-           grep "image:" /tmp/deployment-rendered.yaml
+          NAMESPACE=dev
+          REPLICAS=1
+          IMAGE="${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}"
+          INGRESS_IP=127.0.0.1
 
-        - name: Apply Deployment
-          run: |
-           kubectl apply -f /tmp/deployment-rendered.yaml
- 
-        - name: Apply Service
-          run: |
-           kubectl apply -f kubernetes/service.yaml
+          sed \
+            -e "s|_{_NAMESPACE_}_|${NAMESPACE}|g" \
+            -e "s|_{_REPLICAS_}_|${REPLICAS}|g" \
+            -e "s|_{_IMAGE_}_|${IMAGE}|g" \
+            kubernetes/development/deployment.yaml \
+            > /tmp/deployment.yaml
 
-        - name: Wait for deployment
-          run: |
-           kubectl rollout status deployment/solar-system \
-           --namespace dev \
-           --timeout=120s
+          sed \
+            -e "s|_{_NAMESPACE_}_|${NAMESPACE}|g" \
+            kubernetes/development/service.yaml \
+            > /tmp/service.yaml
 
-        - name: Show Kubernetes resources
-          run: |
-           kubectl get all -n dev
-           kubectl get secrets -n dev
+          sed \
+            -e "s|_{_NAMESPACE_}_|${NAMESPACE}|g" \
+            -e "s|_{_INGRESS_IP_}_|${INGRESS_IP}|g" \
+            kubernetes/development/ingress.yaml \
+            > /tmp/ingress.yaml
 
-        - name: Run integration test
-          id: integration-test
-          run: |
-           set -euo pipefail
+          echo "Rendered Deployment image:"
+          grep "image:" /tmp/deployment.yaml
 
-           kubectl port-forward \
-           --namespace dev \
-           service/solar-system \
-           3000:3000 > /tmp/port-forward.log 2>&1 &
+          echo "Rendered Deployment namespace:"
+          grep "namespace:" /tmp/deployment.yaml
 
-           PORT_FORWARD_PID=$!
-           trap 'kill "$PORT_FORWARD_PID" || true' EXIT
+          echo "Rendered Ingress host:"
+          grep "host:" /tmp/ingress.yaml
 
-           sleep 5
+      - name: Apply Deployment and Service
+        run: |
+          kubectl apply -f /tmp/deployment.yaml
+          kubectl apply -f /tmp/service.yaml
 
-           curl --fail http://127.0.0.1:3000
+      - name: Wait for Dev rollout
+        run: |
+          kubectl rollout status \
+            deployment/solar-system \
+            --namespace dev \
+            --timeout=180s
 
-           echo "url=http://127.0.0.1:3000" >> "$GITHUB_OUTPUT"
+      - name: Inspect Dev resources
+        if: always()
+        run: |
+          kubectl get all -n dev
+          kubectl get secret mongo-db-creds -n dev
+          kubectl get pods -n dev -o wide
 
-        - name: Print application URL
-          run: |
-           echo "Application URL: ${{ steps.integration-test.outputs.url }}"
+      - name: Install NGINX Ingress Controller for kind
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 
-    # dev-deploy:
-    #   needs: docker
-    #   name: dev-deploy
-    #   runs-on: ubuntu-latest
-    #   steps:
-    #     - name: Checkout your branch
-    #       uses: actions/checkout@v4
+      - name: Wait for NGINX Ingress Controller
+        run: |
+          kubectl wait \
+            --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=180s
 
-    #     # - name: Create kind cluster
-    #     #   uses: helm/kind-action@v1
-    #     #   with:
-    #     #    cluster_name: solar-system
-    #     #    wait: 120s
+      - name: Apply Dev Ingress
+        run: |
+          kubectl apply -f /tmp/ingress.yaml
+          kubectl get ingress -n dev
 
+      - name: Run Dev integration test through Ingress
+        run: |
+          set -euo pipefail
 
-    #     - name: install kubectl
-    #       uses: azure/setup-kubectl@v3
-    #       with:
-    #         version: 'latest'
-            
-    #     - name: set kubernetes context
-    #       uses: azure/k8s-set-context@v5
-    #       with:
-    #         method: kubeconfig
-    #         kubeconfig: ${{ secrets.KUBECONFIG }}
-            
+          APP_HOST="solar-system-dev.127.0.0.1.nip.io"
+          APP_URL="http://${APP_HOST}"
+          echo "Application URL: ${APP_URL}"
+          {
+            echo "## Kubernetes Dev application"
+            echo ""
+            echo "The application was deployed through Ingress for this temporary runner:"
+            echo ""
+            echo "**${APP_URL}**"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-    #     - name: fetch kubernetes cluster details
-    #       run: |
-    #         kubectl version 
-    #         echo ------------
-    #         kubectl get nodes
+          for attempt in {1..60}; do
+            if curl --silent --show-error --fail \
+              --resolve "${APP_HOST}:80:127.0.0.1" \
+              "${APP_URL}/live" >/dev/null; then
+              echo "Kubernetes Dev Ingress integration test passed"
+              exit 0
+            fi
+            sleep 3
+          done
 
-
-  
-
-
-
+          echo "Kubernetes Dev Ingress integration test failed"
+          kubectl describe ingress solar-system -n dev || true
+          kubectl logs -n ingress-nginx \
+            -l app.kubernetes.io/component=controller \
+            --tail=100 || true
+          exit 1
