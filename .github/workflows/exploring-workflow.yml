@@ -175,39 +175,138 @@ jobs:
           tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{github.sha}}
             ghcr.io/${{ github.repository_owner }}/solar-system:${{github.sha}}
-
+      
     dev-deploy:
-      needs: docker
-      name: dev-deploy
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout your branch
+       name: Deploy to Kubernetes Dev
+       needs: docker
+       runs-on: ubuntu-latest
+
+       env:
+        name: dev
+
+       steps:
+        - name: Checkout repository
           uses: actions/checkout@v4
 
-        # - name: Create kind cluster
-        #   uses: helm/kind-action@v1
-        #   with:
-        #    cluster_name: solar-system
-        #    wait: 120s
-
-
-        - name: install kubectl
+        - name: Install kubectl
           uses: azure/setup-kubectl@v3
           with:
-            version: 'latest'
-            
-        - name: set kubernetes context
-          uses: azure/k8s-set-context@v5
+           version: latest
+
+        - name: Create temporary kind cluster
+          uses: helm/kind-action@v1
           with:
-            method: kubeconfig
-            kubeconfig: ${{ secrets.KUBECONFIG }}
+           cluster_name: solar-system
+           wait: 120s
+
+        - name: Verify Kubernetes connection
+          run: |
+           set -euo pipefail
+
+           kubectl config current-context
+           kubectl cluster-info
+           kubectl version
+           kubectl get nodes
+
+        - name: Create dev namespace
+          run: |
+           kubectl create namespace dev \
+           --dry-run=client \
+           -o yaml | kubectl apply -f -
+
+        - name: Create Kubernetes Secret
+          run: |
+           kubectl create secret generic mongo-secret \
+           --namespace dev \
+           --from-literal=username="${{ vars.MONGO_USERNAME }}" \
+           --from-literal=password="${{ secrets.MONGO_PASSWORD }}" \
+           --dry-run=client \
+           -o yaml | kubectl apply -f -
+
+        - name: Replace image placeholder
+          run: |
+           IMAGE="${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}"
+
+           sed "s|IMAGE_PLACEHOLDER|${IMAGE}|g" \
+           kubernetes/deployment.yaml \
+           > /tmp/deployment-rendered.yaml
+
+           grep "image:" /tmp/deployment-rendered.yaml
+
+        - name: Apply Deployment
+          run: |
+           kubectl apply -f /tmp/deployment-rendered.yaml
+ 
+        - name: Apply Service
+          run: |
+           kubectl apply -f kubernetes/service.yaml
+
+        - name: Wait for deployment
+          run: |
+           kubectl rollout status deployment/solar-system \
+           --namespace dev \
+           --timeout=120s
+
+        - name: Show Kubernetes resources
+          run: |
+           kubectl get all -n dev
+           kubectl get secrets -n dev
+
+        - name: Run integration test
+          id: integration-test
+          run: |
+           set -euo pipefail
+
+           kubectl port-forward \
+           --namespace dev \
+           service/solar-system \
+           3000:3000 > /tmp/port-forward.log 2>&1 &
+
+           PORT_FORWARD_PID=$!
+           trap 'kill "$PORT_FORWARD_PID" || true' EXIT
+
+           sleep 5
+
+           curl --fail http://127.0.0.1:3000
+
+           echo "url=http://127.0.0.1:3000" >> "$GITHUB_OUTPUT"
+
+        - name: Print application URL
+          run: |
+           echo "Application URL: ${{ steps.integration-test.outputs.url }}"
+
+    # dev-deploy:
+    #   needs: docker
+    #   name: dev-deploy
+    #   runs-on: ubuntu-latest
+    #   steps:
+    #     - name: Checkout your branch
+    #       uses: actions/checkout@v4
+
+    #     # - name: Create kind cluster
+    #     #   uses: helm/kind-action@v1
+    #     #   with:
+    #     #    cluster_name: solar-system
+    #     #    wait: 120s
+
+
+    #     - name: install kubectl
+    #       uses: azure/setup-kubectl@v3
+    #       with:
+    #         version: 'latest'
+            
+    #     - name: set kubernetes context
+    #       uses: azure/k8s-set-context@v5
+    #       with:
+    #         method: kubeconfig
+    #         kubeconfig: ${{ secrets.KUBECONFIG }}
             
 
-        - name: fetch kubernetes cluster details
-          run: |
-            kubectl version 
-            echo ------------
-            kubectl get nodes
+    #     - name: fetch kubernetes cluster details
+    #       run: |
+    #         kubectl version 
+    #         echo ------------
+    #         kubectl get nodes
 
 
   
