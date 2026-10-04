@@ -283,14 +283,55 @@ jobs:
 
       - name: Wait for NGINX Ingress Controller
         run: |
+          set -euo pipefail
+
+          # The controller can be Ready before the admission webhook jobs
+          # and Service endpoints are ready.
+          kubectl wait \
+            --namespace ingress-nginx \
+            --for=condition=available deployment/ingress-nginx-controller \
+            --timeout=180s
+
           kubectl wait \
             --namespace ingress-nginx \
             --for=condition=ready pod \
             --selector=app.kubernetes.io/component=controller \
             --timeout=180s
 
+          kubectl wait \
+            --namespace ingress-nginx \
+            --for=condition=complete job/ingress-nginx-admission-create \
+            --timeout=180s
+
+          kubectl wait \
+            --namespace ingress-nginx \
+            --for=condition=complete job/ingress-nginx-admission-patch \
+            --timeout=180s
+
+          WEBHOOK_ENDPOINTS=""
+          for attempt in {1..30}; do
+            WEBHOOK_ENDPOINTS="$(kubectl get endpoints ingress-nginx-controller-admission \
+              --namespace ingress-nginx \
+              --output=jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true)"
+
+            if [ -n "${WEBHOOK_ENDPOINTS}" ]; then
+              echo "Admission webhook endpoints are ready: ${WEBHOOK_ENDPOINTS}"
+              break
+            fi
+
+            echo "Waiting for admission webhook endpoints..."
+            sleep 3
+          done
+
+          if [ -z "${WEBHOOK_ENDPOINTS}" ]; then
+            echo "Admission webhook endpoints did not become ready"
+            kubectl get pods,svc,endpoints,jobs -n ingress-nginx -o wide
+            exit 1
+          fi
+
       - name: Apply Dev Ingress
         run: |
+          # The manifest uses the modern spec.ingressClassName field.
           kubectl apply -f /tmp/ingress.yaml
           kubectl get ingress -n dev
 
