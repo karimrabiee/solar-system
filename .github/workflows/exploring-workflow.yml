@@ -170,6 +170,7 @@ jobs:
     needs: docker
     name: dev-deploy
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout your branch
         uses: actions/checkout@v4
@@ -191,7 +192,7 @@ jobs:
           echo ------------
           kubectl get nodes
 
-      - name: save the inginx ingress controller service IP address as  a GITHUB Environment variable
+      - name: save the inginx ingress controller service IP address as a GITHUB Environment variable
         run: |
           INGRESS_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           echo "INGRESS_IP=$INGRESS_IP" >> $GITHUB_ENV
@@ -201,22 +202,24 @@ jobs:
         with:
           tokenPrefix: '_{_'
           tokenSuffix: '_}_'
-          files: '["C:/Users/karee/OneDrive/Desktop/projects/solar-system/kubernetes/development/*.yaml"]'
+          files: '["kubernetes/development/*.yaml"]'
         env:
           NAMESPACE: ${{ vars.NAMESPACE }}
           REPLICAS: ${{ vars.REPLICAS }}
           IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}
           INGRESS_IP: ${{ env.INGRESS_IP }}
+
       - name: Create development namespace
         run: |
-          kubectl create namespace development --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace ${{ vars.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: create mongo-db-creds secret in kubernetes cluster
         run: |
           kubectl create secret generic mongo-db-creds \
-            --from-literal=MONGO_URI=${{ env.MONGO_URI }} \
-            --from-literal=MONGO_USERNAME=${{ env.MONGO_USERNAME }} \
-            --from-literal=MONGO_PASSWORD=${{ env.MONGO_PASSWORD }} \
+            --from-literal=MONGO_URI="${{ env.MONGO_URI }}" \
+            --from-literal=MONGO_USERNAME="${{ env.MONGO_USERNAME }}" \
+            --from-literal=MONGO_PASSWORD="${{ env.MONGO_PASSWORD }}" \
             --namespace ${{ vars.NAMESPACE }} \
             --dry-run=client -o yaml | kubectl apply -f -
 
