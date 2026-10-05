@@ -201,7 +201,7 @@ jobs:
         with:
           tokenPrefix: '_{_'
           tokenSuffix: '_}_'
-          files: '["C:\Users\karee\OneDrive\Desktop\projects\solar-system\kubernetes\development\*.yaml"]'
+          files: '["C:/Users/karee/OneDrive/Desktop/projects/solar-system/kubernetes/development/*.yaml"]'
         env:
           NAMESPACE: ${{ vars.NAMESPACE }}
           REPLICAS: ${{ vars.REPLICAS }}
