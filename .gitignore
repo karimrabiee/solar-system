@@ -1,0 +1,152 @@
+# ============================================
+
+# Node.js
+
+# ============================================
+aws-kubernetes-lab/.terraform/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ============================================
+
+# Environment / Secrets
+
+# ============================================
+
+.env
+.env.*
+!.env.example
+
+# Project secrets / credentials
+
+apikey
+secrets/
+**/apikey
+**/secrets/
+
+# ============================================
+
+# Test / Coverage
+
+# ============================================
+
+.nyc_output/
+coverage/
+test-results.xml
+
+# ============================================
+
+# Terraform
+
+# ============================================
+
+# Terraform working directory
+
+**/.terraform/
+
+# Terraform state files
+
+**/*.tfstate
+**/*.tfstate.*
+**/terraform.tfstate
+**/terraform.tfstate.backup
+
+# Terraform variable files - may contain secrets
+
+**/*.tfvars
+**/*.tfvars.json
+
+# Terraform crash logs
+
+**/crash.log
+**/crash.*.log
+
+# Terraform override files
+
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+
+# Terraform plan files
+
+**/*.tfplan
+**/*.tfplan.*
+
+# ============================================
+
+# Private Keys / Certificates
+
+# ============================================
+
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.crt
+**/*.cer
+
+# Specific lab credentials
+
+**/ci-cd-key
+**/ci-cd-key.pem
+**/kubeconfig
+
+# ============================================
+
+# OS / Editor
+
+# ============================================
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+.vscode/
+.idea/
+
+# ============================================
+
+# Build / Generated Files
+
+# ============================================
+
+dist/
+build/
+*.log
+
+# ============================================
+
+# Project-specific generated files
+
+# ============================================
+
+
+solar-system.png
+talism anrc
+.talismanrc
+# Terraform
+**\.terraform\
+**/.terraform/
+*\.terraform\
+*/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Terraform crash logs
+crash.log
+crash.*.log
+
+# Variable files that may contain secrets
+*.tfvars
+*.tfvars.json
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

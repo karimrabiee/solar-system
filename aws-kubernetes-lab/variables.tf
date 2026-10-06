@@ -1,3 +1,5 @@
+# 2. `variables.tf`
+
 variable "aws_region" {
   description = "AWS region for the Kubernetes lab"
   type        = string
@@ -72,3 +74,62 @@ variable "kubernetes_api_cidr" {
     error_message = "kubernetes_api_cidr must be a valid IPv4 CIDR."
   }
 }
+
+
+# ### What changed from your original code?
+
+# Only the important parts:
+
+# ```text
+# EC2
+#  ↓
+# K3s
+#  ↓
+# ServiceLB
+#  ↓
+# ingress-nginx
+#  ↓
+# LoadBalancer Service
+#  ↓
+# Elastic IP
+# ```
+
+# Your existing GitHub Actions command:
+
+# ```bash
+# kubectl get svc -n ingress-nginx ingress-nginx-controller
+# ```
+
+# should now eventually show something like:
+
+# ```text
+# NAME                       TYPE           EXTERNAL-IP
+# ingress-nginx-controller   LoadBalancer   52.x.x.x
+# ```
+
+# And that external IP should correspond to your **AWS Elastic IP** because we explicitly configure the K3s node's external IP. K3s documents that ServiceLB uses the node external IP when populating `status.loadBalancer.ingress`.
+
+# The ingress-nginx installation itself follows the project's current documented installation approach, and the controller readiness check is also based on their documented procedure.
+
+# ### One important note
+
+# After changing `user_data`, simply running `terraform apply` on the existing EC2 instance **will not necessarily rerun the bootstrap script**.
+
+# For your lab, the cleanest approach is:
+
+# ```bash
+# terraform destroy
+# terraform apply
+# ```
+
+# Then wait for the instance bootstrap to finish.
+
+# After SSH:
+
+# ```bash
+# kubectl get nodes
+# kubectl get pods -n ingress-nginx
+# kubectl get svc -n ingress-nginx
+# ```
+
+# You should see the `ingress-nginx-controller` with an external IP.

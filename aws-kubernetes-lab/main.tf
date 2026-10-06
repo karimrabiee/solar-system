@@ -20,15 +20,20 @@ provider "aws" {
 
 provider "http" {}
 
-# Terraform detects the public IPv4 address of the machine running apply.
-# This removes the need to manually discover and type your IP address.
+# --------------------------------------------------
+# Detect public IP of the machine running Terraform
+# --------------------------------------------------
+
 data "http" "my_public_ip" {
   url = "https://checkip.amazonaws.com"
 }
 
+# --------------------------------------------------
+# Availability Zones
+# --------------------------------------------------
+
 data "aws_availability_zones" "available" {
   state = "available"
-
 
   filter {
     name   = "opt-in-status"
@@ -40,6 +45,10 @@ data "aws_availability_zones" "available" {
     values = ["availability-zone"]
   }
 }
+
+# --------------------------------------------------
+# Ubuntu AMI
+# --------------------------------------------------
 
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -61,14 +70,14 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# --------------------------------------------------
+# Locals
+# --------------------------------------------------
+
 locals {
   project_name = var.name
-
-  # Use an explicitly supplied CIDR when provided; otherwise automatically
-  # allow SSH only from the current public IP of the Terraform machine.
   detected_admin_cidr = "${chomp(data.http.my_public_ip.response_body)}/32"
-  admin_cidr          = var.admin_cidr == null ? local.detected_admin_cidr : var.admin_cidr
-
+  admin_cidr = var.admin_cidr == null ? local.detected_admin_cidr : var.admin_cidr
   common_tags = {
     Project   = var.name
     ManagedBy = "Terraform"
@@ -76,9 +85,9 @@ locals {
   }
 }
 
-# -----------------------------
-# Networking: VPC and subnets
-# -----------------------------
+# ==================================================
+# NETWORKING
+# ==================================================
 
 resource "aws_vpc" "kubernetes_lab" {
   cidr_block           = var.vpc_cidr
@@ -132,15 +141,16 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# -----------------------------
-# Security
-# -----------------------------
+# ==================================================
+# SECURITY GROUP
+# ==================================================
 
 resource "aws_security_group" "kubernetes_lab" {
   name_prefix = "${var.name}-"
   description = "Security group for the temporary K3s Kubernetes learning lab"
   vpc_id      = aws_vpc.kubernetes_lab.id
 
+  # SSH only from Terraform operator IP
   ingress {
     description = "SSH from the Terraform operator public IP"
     from_port   = 22
@@ -149,8 +159,7 @@ resource "aws_security_group" "kubernetes_lab" {
     cidr_blocks = [local.admin_cidr]
   }
 
-  # GitHub-hosted runners do not have one stable public IP range that can be
-  # safely hard-coded. Keep this open only while the lab is running.
+  # Kubernetes API
   ingress {
     description = "Kubernetes API for GitHub Actions"
     from_port   = 6443
@@ -159,6 +168,7 @@ resource "aws_security_group" "kubernetes_lab" {
     cidr_blocks = [var.kubernetes_api_cidr]
   }
 
+  # Application HTTP
   ingress {
     description = "HTTP application access"
     from_port   = 80
@@ -167,6 +177,7 @@ resource "aws_security_group" "kubernetes_lab" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Application HTTPS
   ingress {
     description = "HTTPS application access"
     from_port   = 443
@@ -176,7 +187,7 @@ resource "aws_security_group" "kubernetes_lab" {
   }
 
   egress {
-    description = "Allow outbound traffic for updates and image downloads"
+    description = "Allow outbound traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -188,9 +199,9 @@ resource "aws_security_group" "kubernetes_lab" {
   })
 }
 
-# -----------------------------
-# Kubernetes server
-# -----------------------------
+# ==================================================
+# ELASTIC IP
+# ==================================================
 
 resource "aws_eip" "kubernetes_lab" {
   domain = "vpc"
@@ -199,6 +210,10 @@ resource "aws_eip" "kubernetes_lab" {
     Name = "${var.name}-eip"
   })
 }
+
+# ==================================================
+# K3s SERVER
+# ==================================================
 
 resource "aws_instance" "kubernetes_lab" {
   ami                         = data.aws_ami.ubuntu.id
@@ -217,32 +232,171 @@ resource "aws_instance" "kubernetes_lab" {
 
   user_data = <<-USERDATA
     #!/bin/bash
+
     set -euxo pipefail
+
     exec > >(tee -a /var/log/kubernetes-lab-bootstrap.log) 2>&1
 
-    apt-get update -y
-    apt-get install -y curl ca-certificates git
+    echo "=========================================="
+    echo "Starting Kubernetes lab bootstrap"
+    echo "=========================================="
 
-    # Single-node K3s keeps the lab inexpensive while preserving the
-    # kubectl/kubeconfig flow used in the course.
-    curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --disable=traefik --tls-san ${aws_eip.kubernetes_lab.public_ip} --write-kubeconfig-mode=644" sh -
+    # --------------------------------------------------
+    # Basic packages
+    # --------------------------------------------------
+
+    apt-get update -y
+
+    apt-get install -y \
+      curl \
+      ca-certificates \
+      git
+
+    # --------------------------------------------------
+    # Install K3s
+    #
+    # Traefik is disabled because this lab uses
+    # ingress-nginx instead.
+    #
+    # ServiceLB remains enabled because it provides
+    # the LoadBalancer functionality for our single
+    # node K3s cluster.
+    # --------------------------------------------------
+
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_EXEC="server \
+      --disable=traefik \
+      --node-external-ip=${aws_eip.kubernetes_lab.public_ip} \
+      --tls-san=${aws_eip.kubernetes_lab.public_ip} \
+      --write-kubeconfig-mode=600" \
+      sh -
+
+    # --------------------------------------------------
+    # Wait for Kubernetes API
+    # --------------------------------------------------
 
     until kubectl get nodes >/dev/null 2>&1; do
+      echo "Waiting for K3s..."
       sleep 5
     done
 
-    # K3s initially writes localhost in its kubeconfig. Replace it with the
-    # stable Elastic IP so GitHub Actions can connect remotely.
-    sed -i "s#https://127.0.0.1:6443#https://${aws_eip.kubernetes_lab.public_ip}:6443#g" /etc/rancher/k3s/k3s.yaml
+    echo "K3s is ready."
 
-    install -d -m 0755 /home/ubuntu/.kube
-    cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/.kube/config
-    chown -R ubuntu:ubuntu /home/ubuntu/.kube
+    # --------------------------------------------------
+    # Configure kubeconfig with Elastic IP
+    # --------------------------------------------------
 
-    cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/kubeconfig
-    chown ubuntu:ubuntu /home/ubuntu/kubeconfig
+    sed -i \
+      "s#https://127.0.0.1:6443#https://${aws_eip.kubernetes_lab.public_ip}:6443#g" \
+      /etc/rancher/k3s/k3s.yaml
 
-    kubectl get nodes > /home/ubuntu/k3s-ready.txt
+    # --------------------------------------------------
+    # Make kubeconfig available to ubuntu user
+    # --------------------------------------------------
+
+    install -d \
+      -o ubuntu \
+      -g ubuntu \
+      -m 0700 \
+      /home/ubuntu/.kube
+
+    install \
+      -o ubuntu \
+      -g ubuntu \
+      -m 0600 \
+      /etc/rancher/k3s/k3s.yaml \
+      /home/ubuntu/.kube/config
+
+    install \
+      -o ubuntu \
+      -g ubuntu \
+      -m 0600 \
+      /etc/rancher/k3s/k3s.yaml \
+      /home/ubuntu/kubeconfig
+
+    # --------------------------------------------------
+    # Install ingress-nginx
+    #
+    # Official ingress-nginx manifest.
+    # The Service is LoadBalancer.
+    #
+    # K3s ServiceLB will expose it using the node's
+    # external IP (our Elastic IP).
+    # --------------------------------------------------
+
+    kubectl apply \
+      -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.1/deploy/static/provider/cloud/deploy.yaml
+
+    # --------------------------------------------------
+    # Wait for ingress-nginx controller
+    # --------------------------------------------------
+
+    kubectl wait \
+      --namespace ingress-nginx \
+      --for=condition=ready pod \
+      --selector=app.kubernetes.io/component=controller \
+      --timeout=180s
+
+    echo "ingress-nginx controller is ready."
+
+    # --------------------------------------------------
+    # Wait for LoadBalancer external IP
+    # --------------------------------------------------
+
+    echo "Waiting for ingress external IP..."
+
+    for i in $(seq 1 60); do
+
+      INGRESS_IP=$(kubectl get svc \
+        -n ingress-nginx \
+        ingress-nginx-controller \
+        -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+
+      if [ -n "$INGRESS_IP" ]; then
+        echo "Ingress external IP: $INGRESS_IP"
+        break
+      fi
+
+      echo "Waiting for LoadBalancer external IP..."
+      sleep 5
+
+    done
+
+    # --------------------------------------------------
+    # Verify ingress IP
+    # --------------------------------------------------
+
+    INGRESS_IP=$(kubectl get svc \
+      -n ingress-nginx \
+      ingress-nginx-controller \
+      -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+    echo "=========================================="
+    echo "Kubernetes cluster ready"
+    echo "K3s API: https://${aws_eip.kubernetes_lab.public_ip}:6443"
+    echo "Ingress IP: $INGRESS_IP"
+    echo "=========================================="
+
+    # --------------------------------------------------
+    # Save useful information
+    # --------------------------------------------------
+
+    kubectl get nodes \
+      > /home/ubuntu/k3s-ready.txt
+
+    kubectl get svc \
+      -n ingress-nginx \
+      > /home/ubuntu/ingress-service.txt
+
+    chown ubuntu:ubuntu \
+      /home/ubuntu/k3s-ready.txt \
+      /home/ubuntu/ingress-service.txt
+
+    chmod 600 \
+      /home/ubuntu/k3s-ready.txt \
+      /home/ubuntu/ingress-service.txt
+
+    echo "Bootstrap completed successfully."
   USERDATA
 
   tags = merge(local.common_tags, {
@@ -254,14 +408,18 @@ resource "aws_instance" "kubernetes_lab" {
   }
 }
 
+# ==================================================
+# ASSOCIATE ELASTIC IP
+# ==================================================
+
 resource "aws_eip_association" "kubernetes_lab" {
   instance_id   = aws_instance.kubernetes_lab.id
   allocation_id = aws_eip.kubernetes_lab.id
 }
 
-# -----------------------------
-# Outputs
-# -----------------------------
+# ==================================================
+# OUTPUTS
+# ==================================================
 
 output "vpc_id" {
   description = "ID of the Terraform-created VPC"
@@ -279,8 +437,18 @@ output "detected_admin_cidr" {
 }
 
 output "public_ip" {
-  description = "Elastic IP of the K3s Kubernetes server"
+  description = "Elastic IP of the K3s server"
   value       = aws_eip.kubernetes_lab.public_ip
+}
+
+output "ingress_ip" {
+  description = "External IP used by the ingress-nginx LoadBalancer"
+  value       = aws_eip.kubernetes_lab.public_ip
+}
+
+output "application_url" {
+  description = "Base URL for the application"
+  value       = "http://${aws_eip.kubernetes_lab.public_ip}"
 }
 
 output "api_server" {
@@ -297,3 +465,6 @@ output "kubeconfig_retrieval_command" {
   description = "Command to retrieve kubeconfig after cloud-init completes"
   value       = "ssh -i ${var.private_key_path} ubuntu@${aws_eip.kubernetes_lab.public_ip} 'cat /home/ubuntu/kubeconfig'"
 }
+
+
+
