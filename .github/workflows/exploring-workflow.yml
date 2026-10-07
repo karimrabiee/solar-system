@@ -172,7 +172,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: development
-      url: http://${{ needs.dev-deploy.outputs.app-ingress-host }}
+      url: http://${{ steps.ingress-ip.outputs.APP_INGRESS_HOST }}
 
     outputs:
           app-ingress-host: ${{ steps.ingress-ip.outputs.APP_INGRESS_HOST }}
