@@ -170,6 +170,9 @@ jobs:
     needs: docker
     name: dev-deploy
     runs-on: ubuntu-latest
+    environment:
+      name: development
+      url: http://${{ needs.dev-deploy.outputs.app-ingress-host }}
 
     outputs:
           app-ingress-host: ${{ steps.ingress-ip.outputs.APP_INGRESS_HOST }}
