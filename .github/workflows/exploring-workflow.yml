@@ -245,7 +245,7 @@ jobs:
           echo "APP_INGRESS_HOST=$(kubectl -n ${{ vars.NAMESPACE }} get ingress -o jsonpath='{.items[0].spec.rules[0].host}')" >> "$GITHUB_OUTPUT"
           
         
-  integration-testing:
+  dev-integration-testing:
     needs: dev-deploy
     name: Integration testing
     runs-on: ubuntu-latest
@@ -261,6 +261,110 @@ jobs:
 
           for attempt in {1..30}; do
             if curl --silent --fail http://${{ needs.dev-deploy.outputs.app-ingress-host }}/live >/dev/null; then
+              echo "Integration test passed"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Integration test failed"
+          exit 1
+
+  prod-deploy:
+    needs: dev-integration-testing
+    name: prod-deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: http://${{ steps.ingress-ip.outputs.APP_INGRESS_HOST }}
+
+    outputs:
+          app-ingress-host: ${{ steps.ingress-ip.outputs.APP_INGRESS_HOST }}
+
+    steps:
+      - name: Checkout your branch
+        uses: actions/checkout@v4
+
+      - name: install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: latest
+
+      - name: set kubernetes context
+        uses: azure/k8s-set-context@v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: fetch kubernetes cluster details
+        run: |
+          kubectl version
+          echo ------------
+          kubectl get nodes
+
+      - name: Get Kubernetes node external IP
+        id: get-ingress-ip
+        run: |
+          INGRESS_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller \
+          -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "INGRESS_IP=${INGRESS_IP}" >> $GITHUB_ENV
+
+      - name: Replace tokens in manifest files
+        uses: cschleiden/replace-tokens@v1
+        with:
+          tokenPrefix: '_{_'
+          tokenSuffix: '_}_'
+          files: '["kubernetes/production/*.yaml"]'
+        env:
+          NAMESPACE: ${{ vars.NAMESPACE }}
+          REPLICAS: ${{ vars.REPLICAS }}
+          IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}
+          INGRESS_IP: ${{ env.INGRESS_IP }}
+
+      - name: Create production namespace
+        run: |
+          kubectl create namespace ${{ vars.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: create mongo-db-creds secret in kubernetes cluster
+        run: |
+          kubectl create secret generic mongo-db-creds \
+            --from-literal=MONGO_URI="${{ env.MONGO_URI }}" \
+            --from-literal=MONGO_USERNAME="${{ env.MONGO_USERNAME }}" \
+            --from-literal=MONGO_PASSWORD="${{ env.MONGO_PASSWORD }}" \
+            --namespace ${{ vars.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy to Kubernetes cluster
+        run: |
+          kubectl apply -f kubernetes/production/deployment.yaml
+          kubectl apply -f kubernetes/production/service.yaml
+          kubectl apply -f kubernetes/production/ingress.yaml
+
+      
+
+      - name: set app ingress ip url output to other jobs
+        id: ingress-ip
+        run: |
+          echo "APP_INGRESS_HOST=$(kubectl -n ${{ vars.NAMESPACE }} get ingress -o jsonpath='{.items[0].spec.rules[0].host}')" >> "$GITHUB_OUTPUT"
+          
+        
+  prod-integration-testing:
+    needs: prod-deploy
+    name: Integration testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout your branch
+        uses: actions/checkout@v4
+
+      - name: Run integration tests
+        run: |
+          set -euo pipefail
+          
+
+          for attempt in {1..30}; do
+            if curl --silent --fail http://${{ needs.prod-deploy.outputs.app-ingress-host }}/live >/dev/null; then
               echo "Integration test passed"
               exit 0
             fi
