@@ -171,6 +171,9 @@ jobs:
     name: dev-deploy
     runs-on: ubuntu-latest
 
+    outputs:
+          app-ingress-host: ${{ steps.ingress-ip.outputs.APP_INGRESS_HOST }}
+
     steps:
       - name: Checkout your branch
         uses: actions/checkout@v4
@@ -230,3 +233,35 @@ jobs:
           kubectl apply -f kubernetes/development/deployment.yaml
           kubectl apply -f kubernetes/development/service.yaml
           kubectl apply -f kubernetes/development/ingress.yaml
+
+      
+
+      - name: set app ingress ip url output to other jobs
+        id: ingress-ip
+        run: |
+          echo "APP_INGRESS_HOST=$(kubectl -n ${{ vars.NAMESPACE }} get ingress -o jsonpath='{.items[0].spec.tls[0].hosts[0]}')" >> $GITHUB_ENV
+          
+        
+  integration-testing:
+    needs: dev-deploy
+    name: Integration testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout your branch
+        uses: actions/checkout@v4
+
+      - name: Run integration tests
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..30}; do
+            if curl --silent --fail http://${{ needs.dev-deploy.outputs.app-ingress-host }}/live >/dev/null; then
+              echo "Integration test passed"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Integration test failed"
+          exit 1
