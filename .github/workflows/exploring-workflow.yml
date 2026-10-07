@@ -239,7 +239,7 @@ jobs:
       - name: set app ingress ip url output to other jobs
         id: ingress-ip
         run: |
-          echo "APP_INGRESS_HOST=$(kubectl -n ${{ vars.NAMESPACE }} get ingress -o jsonpath='{.items[0].spec.rules[0].host}')" >> $GITHUB_ENV
+          echo "APP_INGRESS_HOST=$(kubectl -n ${{ vars.NAMESPACE }} get ingress -o jsonpath='{.items[0].spec.rules[0].host}')" >> "$GITHUB_OUTPUT"
           
         
   integration-testing:
