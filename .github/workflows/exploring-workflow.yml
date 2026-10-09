@@ -106,6 +106,14 @@ jobs:
         with:
           name: code-coverage-result
 
+      - name: merge test results and code coverage report
+        run: |
+          mkdir reports-${{ github.sha }}
+          mv test-results.xml reports-${{ github.sha }}
+          mv coverage reports-${{ github.sha }}
+          ls -ltr reports-${{ github.sha }}
+
+
       - name: Upload to S3
         run: echo "Uploading....."
       
