@@ -6,7 +6,7 @@ on:
 
 env:
   # Keep the MongoDB connection configurable through GitHub Variables/Secrets.
-  MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData'
+  MONGO_URI: ${{ vars.MONGO_URI }}
   MONGO_USERNAME: ${{ vars.MONGO_USERNAME }}
   MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
 
@@ -177,7 +177,7 @@ jobs:
       environment: development
       k8s_version: latest
       k8s_manifest_path: kubernetes/development
-      MONGO_URI: ${{ env.MONGO_URI }}
+      MONGO_URI: ${{ vars.MONGO_URI }}
         
 
   dev-integration-testing:
@@ -218,7 +218,7 @@ jobs:
       environment: production
       k8s_version: latest
       k8s_manifest_path: kubernetes/production
-      MONGO_URI: ${{ env.MONGO_URI }}
+      MONGO_URI: ${{ vars.MONGO_URI }}
 
   prod-integration-testing:
     
