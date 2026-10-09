@@ -27,6 +27,10 @@ on:
         required: true
       kubeconfig:
         required: true
+    outputs:
+      app-url:
+        description: 'The URL of the deployed application'
+        value: ${{ jobs.reuse-workflow.outputs.app-ingress-host }}
 
 jobs:
   reuse-workflow:

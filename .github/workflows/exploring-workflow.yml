@@ -196,7 +196,7 @@ jobs:
           
 
           for attempt in {1..30}; do
-            if curl --silent --fail http://${{ needs.dev-deploy.outputs.app-ingress-host }}/live >/dev/null; then
+            if curl --silent --fail http://${{ needs.dev-deploy.outputs.app-url }}/live >/dev/null; then
               echo "Integration test passed"
               exit 0
             fi
@@ -237,7 +237,7 @@ jobs:
           
 
           for attempt in {1..30}; do
-            if curl --silent --fail http://${{ needs.prod-deploy.outputs.app-ingress-host }}/live >/dev/null; then
+            if curl --silent --fail http://${{ needs.prod-deploy.outputs.app-url }}/live >/dev/null; then
               echo "Integration test passed"
               exit 0
             fi
