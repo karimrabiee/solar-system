@@ -458,7 +458,7 @@ output "api_server" {
 
 output "ssh_command" {
   description = "SSH command for troubleshooting"
-  value       = "ssh -i ${var.private_key_path} ubuntu@${aws_eip.kubernetes_lab.public_ip}"
+  value       = "ssh -i ${var.private_key_path}.pem ubuntu@${aws_eip.kubernetes_lab.public_ip}"
 }
 
 output "kubeconfig_retrieval_command" {
@@ -466,5 +466,9 @@ output "kubeconfig_retrieval_command" {
   value       = "ssh -i ${var.private_key_path} ubuntu@${aws_eip.kubernetes_lab.public_ip} 'cat /home/ubuntu/kubeconfig'"
 }
 
+output "command_to_export_kubeconfig" {
+  description = "Command to export KUBECONFIG environment variable"
+  value       = "export KUBECONFIG=/home/ubuntu/kubeconfig"
+}
 
 
