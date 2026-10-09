@@ -2,6 +2,26 @@ name: resuse-workflow
 
 on:
   workflow_call:
+    inputs:
+      MONGO_URI:
+        required: true
+        type: string
+
+      k8s_version:
+        required: false
+        type: string
+        default: latest
+
+      environment:
+        required: true
+        type: string
+        default: 'development'
+
+      k8s_manifest_path:
+        required: true
+        type: string
+        default: 'kubernetes/development/*.yaml'
+
     secrets:
       MONGO_PASSWORD:
         required: true
@@ -13,7 +33,7 @@ jobs:
     name: dev-deploy
     runs-on: ubuntu-latest
     environment:
-      name: development
+      name: ${{inputs.environment}}
       url: http://${{ steps.ingress-ip.outputs.APP_INGRESS_HOST }}
 
     outputs:
@@ -26,7 +46,7 @@ jobs:
       - name: install kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: latest
+          version: ${{ inputs.k8s_version }}
 
       - name: set kubernetes context
         uses: azure/k8s-set-context@v5
@@ -52,7 +72,7 @@ jobs:
         with:
           tokenPrefix: '_{_'
           tokenSuffix: '_}_'
-          files: '["kubernetes/development/*.yaml"]'
+          files: '["${{inputs.k8s_manifest_path}}/*.yaml"]'
         env:
           NAMESPACE: ${{ vars.NAMESPACE }}
           REPLICAS: ${{ vars.REPLICAS }}
@@ -67,7 +87,7 @@ jobs:
       - name: create mongo-db-creds secret in kubernetes cluster
         run: |
           kubectl create secret generic mongo-db-creds \
-            --from-literal=MONGO_URI="${{ env.MONGO_URI }}" \
+            --from-literal=MONGO_URI="${{ inputs.MONGO_URI }}" \
             --from-literal=MONGO_USERNAME="${{ env.MONGO_USERNAME }}" \
             --from-literal=MONGO_PASSWORD="${{ secrets.MONGO_PASSWORD }}" \
             --namespace ${{ vars.NAMESPACE }} \
