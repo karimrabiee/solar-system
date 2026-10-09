@@ -101,10 +101,11 @@ jobs:
         with:
           name: mocha-artifacts
 
-      - name: download code coverage report
+      - name: Download coverage results
         uses: actions/download-artifact@v4
         with:
           name: code-coverage-result
+          path: coverage
 
       - name: merge test results and code coverage report
         run: |
