@@ -91,6 +91,26 @@ jobs:
           retention-days: 5
           if-no-files-found: warn
 
+  aws-s3-upload:
+    name: Upload coverage report and test results to AWS S3
+    needs: [coverage-code, unit-testing]
+    runs-on: ubuntu-latest
+    steps:
+      - name: download test results report
+        uses: actions/download-artifact@v4
+        with:
+          name: mocha-artifacts
+
+      - name: download code coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: code-coverage-result
+
+      - name: Upload to S3
+        run: echo "Uploading....."
+      
+    
+
   docker:
     name: Build and publish Docker image
     needs:
