@@ -40,8 +40,10 @@ jobs:
           node-version: 18
           cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - name: Cache and install dependencies
+        uses: ./.github/custom-action/npm-action
+        with:
+          path: node_modules
 
       - name: Run unit tests
         run: npm test
@@ -74,9 +76,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: npm install
+      
+      - name: Cache and install dependencies
+        uses: ./.github/custom-action/npm-action
+        with:
+          path: node_modules 
 
       - name: Generate coverage report
         continue-on-error: true
@@ -127,25 +131,25 @@ jobs:
       #     AWS_REGION: "us-east-1"
       #     SOURCE_DIR: "reports-${{ github.sha }}"
       #     DEST_DIR: "reports/${{ github.sha }}"
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+      #OR----------------------------------------------------------------------
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v6
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: us-east-1
 
-      - name: Upload reports to S3
-        run: |
-          set -euo pipefail
+      # - name: Upload reports to S3
+      #   run: |
+      #     set -euo pipefail
 
-          aws s3 sync \
-            "reports-${GITHUB_SHA}/" \
-            "s3://solar-system-k8s-lab-kubeconfig/reports/${GITHUB_SHA}/" \
-            --region us-east-1 \
-            --no-progress
+      #     aws s3 sync \
+      #       "reports-${GITHUB_SHA}/" \
+      #       "s3://solar-system-k8s-lab-kubeconfig/reports/${GITHUB_SHA}/" \
+      #       --region us-east-1 \
+      #       --no-progress
 
-          echo "Reports uploaded successfully."
+      #     echo "Reports uploaded successfully."
       
     
 

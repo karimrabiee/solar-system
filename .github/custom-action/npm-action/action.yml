@@ -1,0 +1,20 @@
+name: cache and install dependencies
+description: 
+  This action caches and installs dependencies for a Node.js project.
+inputs:
+  path:  
+    description: 'Path to the directory where dependencies are installed'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ${{ inputs.path }}
+        key: ${{ runner.os }}-node-${{ hashFiles('${{ inputs.path }}/package-lock.json') }}
+
+    - name: Install dependencies
+      run: npm install
+      shell: bash

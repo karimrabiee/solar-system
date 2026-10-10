@@ -417,14 +417,14 @@ resource "aws_eip_association" "kubernetes_lab" {
   allocation_id = aws_eip.kubernetes_lab.id
 }
 
-resource "aws_s3_bucket" "kubernetes_lab" {
-  bucket = "${var.name}-kubeconfig"
-  #solar-system-k8s-lab-kubeconfig
+# resource "aws_s3_bucket" "kubernetes_lab" {
+#   bucket = "${var.name}-kubeconfig"
+#   #solar-system-k8s-lab-kubeconfig
 
-  tags = merge(local.common_tags, {
-    Name = "${var.name}-kubeconfig"
-  })
-}
+#   tags = merge(local.common_tags, {
+#     Name = "${var.name}-kubeconfig"
+#   })
+# }
 
 # ==================================================
 # OUTPUTS
