@@ -18,7 +18,7 @@ jobs:
              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           run: |
             issues_title="${{github.event.issue.title}}"
-            if [["$issues_title == *"bug"*" ]]; then
+            if [["$issues_title" == *"bug"* ]]; then
                 echo "isses is about abug!"
                 echo "assign label.. ... ... ."
             else
