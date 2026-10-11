@@ -1,0 +1,25 @@
+name: test injection test
+
+on:
+    issues:
+      types: [opened]
+      
+jobs:
+  test-injection:
+    runs-on: ubuntu-latest
+
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: add a label
+          env:
+             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          run: |
+            issues_title="${{github.event.issue.title}}"
+            if [["$issues_title == *"bug"*" ]]; then
+                echo "isses is about abug!"
+                echo "assign label.. ... ... ."
+            else
+                echo "not abug"
+            fi
