@@ -16,7 +16,7 @@ jobs:
         - name: add a label
           env:
              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-             issues_title: ${{github.event.issue.title}}
+             issues_title: "${{github.event.issue.title}}"
           run: |
             
             if [["$issues_title" == *"bug"* ]]; then
