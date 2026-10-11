@@ -2,7 +2,8 @@ name: test injection test
 
 on:
     issues:
-      types: [opened]
+      types: 
+        - opened
       
 jobs:
   test-injection:
