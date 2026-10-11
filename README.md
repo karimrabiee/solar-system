@@ -1,3 +1,5 @@
+[![vault-demo](https://github.com/karimrabiee/solar-system/actions/workflows/vault-demo.yml/badge.svg)](https://github.com/karimrabiee/solar-system/actions/workflows/vault-demo.yml)
+
 # Solar System NodeJS Application 
   
 A simple HTML+MongoDB+NodeJS project to display Solar System and it's planets.
